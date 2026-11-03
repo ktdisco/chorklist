@@ -1,11 +1,10 @@
 {
   "name": "chorklist",
-  "version": "1.0.0",
-  "description": "Track your household's recurring chores",
-  "main": "server.js",
-  "type": "commonjs",
+  "version": "2.0.0",
+  "description": "Track your household's recurring chores, shared between everyone's phones",
+  "private": true,
   "scripts": {
-    "start": "node server.js",
+    "dev": "node scripts/serve.js",
     "test": "node --test test/*.test.js"
   },
   "engines": {

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const s = require('../lib/schedule');
+const s = require('../web/schedule');
 
 test('addInterval handles days, weeks, months and years', () => {
   assert.equal(s.addInterval('2026-01-30', 3, 'day'), '2026-02-02');

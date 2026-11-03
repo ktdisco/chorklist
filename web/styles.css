@@ -28,6 +28,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -44,6 +45,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
   max-width: 760px;
   margin: 0 auto;
 }
@@ -69,7 +71,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
-main { max-width: 760px; margin: 0 auto; padding: 16px 16px 80px; }
+main { max-width: 760px; margin: 0 auto; padding: 16px 16px calc(80px + env(safe-area-inset-bottom)); }
 
 .toolbar, .inline-form { display: flex; gap: 8px; margin-bottom: 16px; }
 .toolbar select, .inline-form input { flex: 1; min-width: 0; }
@@ -124,7 +126,8 @@ ul { list-style: none; margin: 0; padding: 0; }
   font-size: 1.1rem;
   font-weight: 700;
 }
-.done-btn:hover, .done-btn:focus-visible { background: var(--accent); color: var(--accent-text); }
+.done-btn:focus-visible { background: var(--accent); color: var(--accent-text); }
+@media (hover: hover) { .done-btn:hover { background: var(--accent); color: var(--accent-text); } }
 
 .chore-main { flex: 1; min-width: 0; cursor: pointer; }
 .chore-title { font-weight: 600; overflow-wrap: anywhere; }
@@ -199,3 +202,34 @@ fieldset.row input { width: 80px; }
 }
 .toast[hidden] { display: none; }
 .toast .link { color: #7fd8cc; }
+
+/* ---------- sign-in and setup screens ---------- */
+
+#screen-household, #screen-loading { max-width: 440px; margin: 24px auto; padding: 0 16px; }
+#screen-auth, #screen-setup { max-width: 408px; margin: 24px 16px; padding: 20px; }
+@media (min-width: 440px) { #screen-auth, #screen-setup { margin: 24px auto; } }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+#screen-household .card h2, .screen.card h2 { margin: 0 0 6px; font-size: 1.15rem; }
+#screen-auth label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: .9rem; color: var(--muted); }
+#screen-auth input { color: var(--text); font-size: 16px; }
+input, select, textarea { font-size: 16px; } /* stops iPhone Safari zooming into fields */
+button.wide { width: 100%; padding: 12px; }
+.switch { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.form-note { color: var(--accent); min-height: 0; margin: 0 0 8px; font-size: .9rem; }
+.form-note:empty, .form-error:empty { margin: 0; min-height: 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ---------- household tab ---------- */
+
+.section-title { margin: 4px 0 0; font-size: 1.3rem; overflow-wrap: anywhere; }
+.invite p { margin: 0 0 10px; }
+.invite-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.invite-row code { flex: 1; font-size: 1.25rem; font-weight: 700; letter-spacing: .06em; overflow-wrap: anywhere; }
+.button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.card p.subtle:first-child { margin-top: 0; }

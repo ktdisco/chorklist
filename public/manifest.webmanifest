@@ -1,9 +1,0 @@
-{
-  "name": "Chorklist",
-  "short_name": "Chorklist",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#f7f7f5",
-  "theme_color": "#2a9d8f",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
-}

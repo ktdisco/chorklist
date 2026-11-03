@@ -1,3 +1,4 @@
+(function (root) {
 'use strict';
 
 // All dates are plain calendar strings (YYYY-MM-DD) so chores don't drift
@@ -79,7 +80,7 @@ function describeFrequency(every, unit) {
   return `Every ${every} ${unit}s`;
 }
 
-module.exports = {
+const api = {
   UNITS,
   parseDate,
   formatDate,
@@ -90,3 +91,7 @@ module.exports = {
   status,
   describeFrequency,
 };
+
+if (typeof module === 'object' && module.exports) module.exports = api;
+else root.Schedule = api;
+})(this);
