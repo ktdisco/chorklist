@@ -132,6 +132,69 @@ select pg_temp.check(assignee_id = :'alex' and last_done_by is null and househol
 select pg_temp.check(count(*) = 1, 'history kept after member delete')
   from public.completions where chore_id = :'trash';
 
+-- ---------- Shared lists (migrations/002_lists.sql) ----------
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+insert into public.lists (household_id, name) values (:'hid', 'Groceries');
+select id as groceries from public.lists where name = 'Groceries' \gset
+select set_config('chork.groceries', :'groceries', false);
+insert into public.list_items (household_id, list_id, name, added_by) values
+  (:'hid', :'groceries', 'Milk', :'alex'),
+  (:'hid', :'groceries', 'Eggs', :'blair'),
+  (:'hid', :'groceries', 'Bread', null);
+update public.list_items set done = true where name in ('Milk', 'Eggs');
+
+-- Blair (same household) sees and can change the list.
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
+select pg_temp.check(count(*) = 3, 'housemate sees list items') from public.list_items;
+-- "Clear checked items" is a plain delete of done items in one list.
+delete from public.list_items where list_id = :'groceries' and done;
+select pg_temp.check(count(*) = 1, 'clear checked leaves unchecked items') from public.list_items;
+
+-- Casey (other household) sees nothing and can't add to it.
+reset role;
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000c');
+select pg_temp.check((select count(*) from public.lists) = 0, 'outsider sees no lists');
+select pg_temp.check((select count(*) from public.list_items) = 0, 'outsider sees no list items');
+do $$ begin
+  execute format('insert into public.list_items (household_id, list_id, name) values (%L, %L, %L)',
+    current_setting('chork.hid'), current_setting('chork.groceries'), 'Sneaky');
+  raise exception 'FAILED: outsider added a list item';
+exception when insufficient_privilege then null;
+end $$;
+-- Even in their own household, they can't point an item at someone else's list.
+do $$ begin
+  execute format('insert into public.list_items (household_id, list_id, name) select id, %L, %L from public.households',
+    current_setting('chork.groceries'), 'Cross');
+  raise exception 'FAILED: item attached to another household''s list';
+exception when foreign_key_violation then null;
+end $$;
+update public.list_items set name = 'hacked';
+delete from public.lists;
+
+reset role;
+select pg_temp.check(count(*) = 1 and min(name) = 'Bread', 'outsider changes blocked')
+  from public.list_items where list_id = :'groceries';
+
+-- Removing a person keeps their items; deleting a list removes its items.
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+insert into public.list_items (household_id, list_id, name, added_by) values (:'hid', :'groceries', 'Jam', :'blair');
+delete from public.members where id = :'blair';
+reset role;
+select pg_temp.check(added_by is null, 'item kept after member delete') from public.list_items where name = 'Jam';
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+delete from public.lists where id = :'groceries';
+reset role;
+select pg_temp.check(count(*) = 0, 'deleting a list removes its items') from public.list_items;
+
+do $$ begin
+  insert into public.lists (household_id, name)
+    values (current_setting('chork.hid')::uuid, '   ');
+  raise exception 'FAILED: blank list name allowed';
+exception when check_violation then null;
+end $$;
+
 -- Signed-out users get nothing.
 set role anon;
 do $$ begin

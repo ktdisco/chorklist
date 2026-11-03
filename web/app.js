@@ -5,8 +5,11 @@ const db = window.ChorkDB;
 const S = window.Schedule;
 
 let session = { user: null, household: null };
-let state = { members: [], chores: [], history: [], recent: [], accountCount: 0, today: '' };
+let state = { members: [], chores: [], history: [], recent: [], accountCount: 0, today: '', lists: [], items: [] };
 let editingId = null;
+let editingListId = null;
+let currentListId = null;
+let section = 'chores';
 let unsubscribe = null;
 let signUpMode = false;
 
@@ -23,7 +26,7 @@ function esc(s) {
 
 function show(screen) {
   for (const el of document.querySelectorAll('.screen')) el.hidden = el.id !== `screen-${screen}`;
-  $('#me-wrap').hidden = screen !== 'app';
+  $('#top-actions').hidden = screen !== 'app';
 }
 
 let routing = 0;
@@ -47,9 +50,11 @@ async function route() {
       stopLive();
       return show('household');
     }
+    currentListId = local.get('chorklist.list') || null; // reopen the list you were last on
     await refresh();
     if (ticket !== routing) return;
     show('app');
+    showSection(local.get('chorklist.section') === 'lists' ? 'lists' : 'chores');
     startLive();
   } catch (err) {
     show('auth');
@@ -143,6 +148,104 @@ function render() {
   renderChores();
   renderHistory();
   renderHousehold();
+  renderLists();
+}
+
+// ---------- sections (bottom bar) ----------
+
+function showSection(name) {
+  if (name !== 'household') local.set('chorklist.section', name);
+  section = name;
+  for (const el of document.querySelectorAll('.section')) el.hidden = el.id !== `section-${name}`;
+  for (const btn of document.querySelectorAll('.bottombar button')) {
+    if (btn.dataset.section === name) btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  }
+  window.scrollTo(0, 0);
+}
+
+// ---------- shared lists ----------
+
+function currentList() {
+  return state.lists.find((l) => l.id === currentListId) || null;
+}
+
+function openList(id) {
+  currentListId = id;
+  local.set('chorklist.list', id || '');
+  renderLists();
+  window.scrollTo(0, 0);
+}
+
+function renderLists() {
+  $('#lists-setup').hidden = state.listsReady !== false;
+  $('#add-list-btn').hidden = state.listsReady === false;
+  if (currentListId && !currentList()) currentListId = null; // deleted by someone else
+  $('#lists-overview').hidden = Boolean(currentListId);
+  $('#list-detail').hidden = !currentListId;
+
+  if (!currentListId) {
+    $('#lists-list').innerHTML = state.lists.length
+      ? state.lists.map((l) => {
+        const items = state.items.filter((i) => i.listId === l.id);
+        const open = items.filter((i) => !i.done).length;
+        const done = items.length - open;
+        const summary = items.length
+          ? `${open} to go${done ? ` · ${done} checked` : ''}`
+          : 'Empty';
+        return `
+          <li>
+            <button class="list-card" data-open-list="${l.id}">
+              <span class="list-name">${esc(l.name)}</span>
+              <span class="subtle">${summary}</span>
+              <span class="chev" aria-hidden="true">›</span>
+            </button>
+          </li>`;
+      }).join('')
+      : state.listsReady === false ? ''
+      : `<li class="empty">
+          <p><strong>No lists yet.</strong></p>
+          <p>Make shared lists for groceries, wish lists, movies to watch, or anything else.</p>
+        </li>`;
+    return;
+  }
+
+  const list = currentList();
+  const items = state.items.filter((i) => i.listId === list.id);
+  const open = items.filter((i) => !i.done);
+  const done = items.filter((i) => i.done);
+  $('#list-title').textContent = list.name;
+  $('#items-open').innerHTML = open.length
+    ? open.map(itemRow).join('')
+    : `<li class="empty">${done.length ? 'All done! 🎉' : 'Nothing on this list yet.'}</li>`;
+  $('#checked-wrap').hidden = !done.length;
+  $('#checked-count').textContent = done.length;
+  $('#items-done').innerHTML = done.map(itemRow).join('');
+}
+
+function itemRow(item) {
+  const who = member(item.addedBy);
+  return `
+    <li class="item${item.done ? ' done' : ''}">
+      <label class="item-check">
+        <input type="checkbox" data-toggle-item="${item.id}" ${item.done ? 'checked' : ''}>
+        <span class="item-name">${esc(item.name)}</span>
+      </label>
+      ${who ? `<span class="added" style="--c:${esc(who.color)}" title="Added by ${esc(who.name)}">${esc(who.name)}</span>` : ''}
+      <button class="icon-btn small" data-remove-item="${item.id}" aria-label="Remove ${esc(item.name)}">×</button>
+    </li>`;
+}
+
+function openListDialog(list) {
+  const form = $('#list-form');
+  editingListId = list ? list.id : null;
+  $('#list-dialog-title').textContent = list ? 'Edit list' : 'New list';
+  $('#delete-list-btn').hidden = !list;
+  $('#list-suggestions').hidden = Boolean(list);
+  $('#list-error').textContent = '';
+  form.name.value = list ? list.name : '';
+  $('#list-dialog').showModal();
+  if (!list) form.name.focus();
 }
 
 function renderMemberSelects() {
@@ -502,6 +605,137 @@ function bindApp() {
       await db.leaveHousehold(session.household.id, session.user.id);
       await route();
     } catch (err) { showError(err); }
+  });
+
+  // ---------- sections ----------
+
+  for (const btn of document.querySelectorAll('.bottombar button')) {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.section === 'lists' && section === 'lists') openList(null); // tap again: back to all lists
+      showSection(btn.dataset.section);
+    });
+  }
+  let beforeHousehold = 'chores';
+  $('#household-btn').addEventListener('click', () => {
+    if (section === 'household') return showSection(beforeHousehold);
+    beforeHousehold = section;
+    showSection('household');
+  });
+  $('#household-back').addEventListener('click', () => showSection(beforeHousehold));
+
+  // ---------- lists ----------
+
+  $('#add-list-btn').addEventListener('click', () => openListDialog(null));
+  $('#list-edit').addEventListener('click', () => openListDialog(currentList()));
+  $('#list-back').addEventListener('click', () => openList(null));
+  $('#cancel-list-btn').addEventListener('click', () => $('#list-dialog').close());
+
+  $('#list-suggestions').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn) $('#list-form').name.value = btn.textContent.replace(/^\S+\s/, '');
+  });
+
+  $('#list-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('#list-form').name.value;
+    if (!name.trim()) {
+      $('#list-error').textContent = 'Give the list a name';
+      return;
+    }
+    try {
+      if (editingListId) {
+        await db.renameList(editingListId, name);
+      } else {
+        await db.addList(session.household.id, name);
+      }
+    } catch (err) {
+      $('#list-error').textContent = err.message;
+      return;
+    }
+    $('#list-dialog').close();
+    const isNew = !editingListId;
+    await refresh().catch(showError);
+    if (isNew) {
+      const created = state.lists.filter((l) => l.name === name.trim()).pop();
+      if (created) openList(created.id);
+    }
+  });
+
+  $('#delete-list-btn').addEventListener('click', async () => {
+    const list = state.lists.find((l) => l.id === editingListId);
+    if (!list || !confirm(`Delete the list “${list.name}” and everything on it?`)) return;
+    try {
+      await db.removeList(list.id);
+      $('#list-dialog').close();
+      state.lists = state.lists.filter((l) => l.id !== list.id);
+      state.items = state.items.filter((i) => i.listId !== list.id);
+      openList(null);
+      await refresh();
+    } catch (err) { showError(err); }
+  });
+
+  $('#lists-list').addEventListener('click', (e) => {
+    const card = e.target.closest('[data-open-list]');
+    if (card) openList(card.dataset.openList);
+  });
+
+  $('#item-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = $('#item-name');
+    const name = input.value.trim();
+    if (!name || !currentListId) return;
+    input.value = '';
+    input.focus(); // keep the keyboard up for adding several things in a row
+    try {
+      await db.addItem(session.household.id, currentListId, name, $('#me-select').value);
+      await refresh();
+    } catch (err) {
+      input.value = name;
+      showError(err);
+    }
+  });
+
+  $('#list-detail').addEventListener('change', async (e) => {
+    const box = e.target.closest('[data-toggle-item]');
+    if (!box) return;
+    const item = state.items.find((i) => i.id === box.dataset.toggleItem);
+    if (!item) return;
+    item.done = box.checked; // update right away; the database catches up
+    renderLists();
+    try {
+      await db.setItemDone(item.id, item.done);
+    } catch (err) {
+      showError(err);
+      refresh().catch(() => {});
+    }
+  });
+
+  $('#list-detail').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-remove-item]');
+    if (!btn) return;
+    const id = btn.dataset.removeItem;
+    state.items = state.items.filter((i) => i.id !== id);
+    renderLists();
+    try {
+      await db.removeItem(id);
+    } catch (err) {
+      showError(err);
+      refresh().catch(() => {});
+    }
+  });
+
+  $('#clear-checked').addEventListener('click', async () => {
+    const listId = currentListId;
+    const count = state.items.filter((i) => i.listId === listId && i.done).length;
+    state.items = state.items.filter((i) => !(i.listId === listId && i.done));
+    renderLists();
+    try {
+      await db.clearChecked(listId);
+      toast(`<span>Cleared ${count} checked ${count === 1 ? 'item' : 'items'}</span>`);
+    } catch (err) {
+      showError(err);
+      refresh().catch(() => {});
+    }
   });
 
   // Catch up when the app comes back to the foreground (e.g. reopening it on the phone),
