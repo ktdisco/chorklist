@@ -17,10 +17,15 @@
 <body>
   <header class="topbar">
     <h1><img src="icon.svg" alt="" width="28" height="28"> Chorklist</h1>
-    <label class="me" id="me-wrap" hidden>
-      <span>I'm</span>
-      <select id="me-select" aria-label="Who is using Chorklist"></select>
-    </label>
+    <div class="top-actions" id="top-actions" hidden>
+      <label class="me">
+        <span>I'm</span>
+        <select id="me-select" aria-label="Who is using Chorklist"></select>
+      </label>
+      <button class="icon-btn" id="household-btn" aria-label="Household settings" title="Household">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5M5.5 9.5V20h13V9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.5" r="2.2" fill="currentColor"/><path d="M8.5 20c0-2 1.6-3.4 3.5-3.4s3.5 1.4 3.5 3.4" fill="currentColor"/></svg>
+      </button>
+    </div>
   </header>
 
   <!-- Shown until config.js has been filled in -->
@@ -64,7 +69,7 @@
     </div>
     <div class="card">
       <h2>Join a household</h2>
-      <p class="subtle">Ask someone in your household for their invite code (it's in their Household tab).</p>
+      <p class="subtle">Ask someone in your household for their invite code (it's on their Household screen: the house icon at the top).</p>
       <form id="join-household-form" class="inline-form">
         <input name="code" placeholder="Invite code" autocapitalize="characters" autocomplete="off" required>
         <button class="primary">Join</button>
@@ -76,26 +81,71 @@
 
   <!-- Main app -->
   <div id="screen-app" class="screen" hidden>
-    <nav class="tabs" role="tablist">
-      <button role="tab" data-tab="chores" aria-selected="true">Chores</button>
-      <button role="tab" data-tab="history" aria-selected="false">History</button>
-      <button role="tab" data-tab="household" aria-selected="false">Household</button>
-    </nav>
+    <!-- Chores -->
+    <div id="section-chores" class="section">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="chores" aria-selected="true">To do</button>
+        <button role="tab" data-tab="history" aria-selected="false">History</button>
+      </nav>
+      <main>
+        <section id="tab-chores" class="tab-panel">
+          <div class="toolbar">
+            <select id="filter-select" aria-label="Filter chores by person"></select>
+            <button id="add-chore-btn" class="primary">+ Add chore</button>
+          </div>
+          <div id="chore-groups"></div>
+        </section>
 
-    <main>
-      <section id="tab-chores" class="tab-panel">
-        <div class="toolbar">
-          <select id="filter-select" aria-label="Filter chores by person"></select>
-          <button id="add-chore-btn" class="primary">+ Add chore</button>
+        <section id="tab-history" class="tab-panel" hidden>
+          <ul id="history-list" class="history"></ul>
+        </section>
+      </main>
+    </div>
+
+    <!-- Shared lists -->
+    <div id="section-lists" class="section" hidden>
+      <main>
+        <div id="lists-overview">
+          <div class="toolbar">
+            <h2 class="section-title grow">Lists</h2>
+            <button id="add-list-btn" class="primary">+ New list</button>
+          </div>
+          <div id="lists-setup" class="card" hidden>
+            <p><strong>Lists need a one-time database update.</strong></p>
+            <p class="subtle">Whoever set up Chorklist: in Supabase, open SQL Editor and run
+              <code>supabase/migrations/002_lists.sql</code> from the GitHub repo, then reopen the app.</p>
+          </div>
+          <ul id="lists-list" class="lists"></ul>
         </div>
-        <div id="chore-groups"></div>
-      </section>
 
-      <section id="tab-history" class="tab-panel" hidden>
-        <ul id="history-list" class="history"></ul>
-      </section>
+        <div id="list-detail" hidden>
+          <div class="list-header">
+            <button class="link back" id="list-back">‹ Lists</button>
+            <h2 id="list-title" class="section-title grow"></h2>
+            <button class="link" id="list-edit">Edit</button>
+          </div>
+          <form id="item-form" class="inline-form" autocomplete="off">
+            <input id="item-name" placeholder="Add an item" maxlength="120" enterkeyhint="done" aria-label="New item">
+            <button class="primary">Add</button>
+          </form>
+          <ul id="items-open" class="items"></ul>
+          <div id="checked-wrap" hidden>
+            <div class="checked-head">
+              <h3 class="group-title">Checked <span class="count" id="checked-count"></span></h3>
+              <button class="link" id="clear-checked">Clear checked</button>
+            </div>
+            <ul id="items-done" class="items"></ul>
+          </div>
+        </div>
+      </main>
+    </div>
 
-      <section id="tab-household" class="tab-panel" hidden>
+    <!-- Household settings (opened from the top bar) -->
+    <div id="section-household" class="section" hidden>
+      <main>
+        <div class="list-header">
+          <button class="link back" id="household-back">‹ Back</button>
+        </div>
         <h2 class="section-title" id="household-name"></h2>
         <h3 class="group-title">People</h3>
         <form id="member-form" class="inline-form">
@@ -106,7 +156,7 @@
 
         <h3 class="group-title">Invite others</h3>
         <div class="card invite">
-          <p class="subtle">Others create their own account, then enter this code to share this household's chores.</p>
+          <p class="subtle">Others create their own account, then enter this code to share this household's chores and lists.</p>
           <div class="invite-row">
             <code id="invite-code"></code>
             <button id="share-invite" class="primary">Share</button>
@@ -123,9 +173,42 @@
             <button class="danger" id="leave-household">Leave household</button>
           </div>
         </div>
-      </section>
-    </main>
+      </main>
+    </div>
+
+    <nav class="bottombar" aria-label="Sections">
+      <button data-section="chores" aria-current="page">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="m4 7 2 2 4-4M4 16l2 2 4-4M13 7h7M13 16h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Chores</span>
+      </button>
+      <button data-section="lists">
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 8.5h8M8 12h8M8 15.5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Lists</span>
+      </button>
+    </nav>
   </div>
+
+  <dialog id="list-dialog">
+    <form id="list-form" method="dialog">
+      <h2 id="list-dialog-title">New list</h2>
+      <label>List name
+        <input name="name" required maxlength="60" placeholder="e.g. Groceries" autocomplete="off">
+      </label>
+      <div class="suggestions" id="list-suggestions">
+        <button type="button" class="chip-btn">🛒 Groceries</button>
+        <button type="button" class="chip-btn">🎁 Wish list</button>
+        <button type="button" class="chip-btn">🎬 Movies to watch</button>
+        <button type="button" class="chip-btn">🧴 Household supplies</button>
+      </div>
+      <p class="form-error" id="list-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" id="delete-list-btn" class="danger" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" id="cancel-list-btn">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="chore-dialog">
     <form id="chore-form" method="dialog">
