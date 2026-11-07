@@ -322,7 +322,7 @@ function choreCard(c) {
       <div class="chore-side">
         ${chip(c.assigneeId)}
         <button class="icon-btn small menu-btn" data-menu="${c.id}" aria-haspopup="menu" aria-expanded="false"
-          aria-label="More actions for ${esc(c.name)}">⋯</button>
+          aria-label="More actions for ${esc(c.name)}">⋮</button>
       </div>
     </li>`;
 }
