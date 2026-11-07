@@ -37,6 +37,8 @@ No computer of yours needs to stay on.
 
 When an update adds a new file to `supabase/migrations/`, run **just that file** once in the SQL Editor. Your existing chores and history are not touched. If you skip it, everything else keeps working, and the Lists tab shows a reminder.
 
+For the full step-by-step checklist for putting an update live (database step, merge, publish, refreshing the iPhone app, and undoing a bad update), see [`docs/DEPLOYING.md`](docs/DEPLOYING.md).
+
 ### 2. Set up logins
 
 In Supabase, open **Authentication**:
