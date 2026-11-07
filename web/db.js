@@ -186,6 +186,11 @@
       const entry = await run(sb.rpc('complete_chore', { p_chore_id: choreId, p_member_id: memberId || null, p_date: date }));
       return toCompletion(entry);
     },
+    async latestCompletion(choreId) {
+      const rows = await run(sb.from('completions').select('*').eq('chore_id', choreId)
+        .order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1));
+      return rows[0] ? toCompletion(rows[0]) : null;
+    },
     async undoCompletion(id) {
       return run(sb.rpc('undo_completion', { p_completion_id: id }));
     },

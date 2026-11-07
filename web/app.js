@@ -278,6 +278,7 @@ const GROUPS = [
 ];
 
 function renderChores() {
+  closeChoreMenu();
   const filter = $('#filter-select').value;
   const chores = state.chores.filter((c) =>
     filter === 'all' ? true : filter === 'none' ? !c.assigneeId : c.assigneeId === filter);
@@ -318,8 +319,63 @@ function choreCard(c) {
         <div class="chore-meta subtle">${last}</div>
         ${c.notes ? `<div class="chore-notes">${esc(c.notes)}</div>` : ''}
       </div>
-      ${chip(c.assigneeId)}
+      <div class="chore-side">
+        ${chip(c.assigneeId)}
+        <button class="icon-btn small menu-btn" data-menu="${c.id}" aria-haspopup="menu" aria-expanded="false"
+          aria-label="More actions for ${esc(c.name)}">⋯</button>
+      </div>
     </li>`;
+}
+
+// ---------- chore card menu (⋯) ----------
+
+let menuFor = null;
+
+function closeChoreMenu() {
+  const menu = $('#chore-menu');
+  if (menu.hidden) return;
+  menu.hidden = true;
+  const btn = document.querySelector(`[data-menu="${menuFor}"]`);
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  menuFor = null;
+}
+
+function openChoreMenu(btn) {
+  const chore = state.chores.find((c) => c.id === btn.dataset.menu);
+  if (!chore) return;
+  if (menuFor === chore.id) return closeChoreMenu();
+  closeChoreMenu();
+  menuFor = chore.id;
+  const by = member(chore.lastDoneBy);
+  const menu = $('#chore-menu');
+  menu.innerHTML = `
+    <button role="menuitem" data-menu-action="edit">Edit chore</button>
+    ${chore.lastDone ? `
+      <button role="menuitem" data-menu-action="undo">
+        Undo last done
+        <span class="subtle">${formatDate(chore.lastDone)}${by ? ` by ${esc(by.name)}` : ''}</span>
+      </button>` : '<p class="menu-note subtle">Not done yet, nothing to undo</p>'}`;
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  // Line the menu up under the button, kept on screen.
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+  menu.style.top = `${r.bottom + 4 + h > window.innerHeight - 8 ? r.top - h - 4 : r.bottom + 4}px`;
+  menu.querySelector('button').focus();
+}
+
+async function undoLastDone(chore) {
+  try {
+    const entry = await db.latestCompletion(chore.id);
+    if (!entry) return refresh();
+    const by = member(entry.memberId);
+    if (!confirm(`Undo “${chore.name}” done on ${formatDate(entry.date)}${by ? ` by ${by.name}` : ''}?`)) return;
+    await db.undoCompletion(entry.id);
+    await refresh();
+    toast(`<span>↩ ${esc(chore.name)} is back on the list</span>`);
+  } catch (err) { showError(err); }
 }
 
 function renderHistory() {
@@ -537,6 +593,11 @@ function bindApp() {
   });
 
   $('#chore-groups').addEventListener('click', async (e) => {
+    const menuBtn = e.target.closest('[data-menu]');
+    if (menuBtn) {
+      openChoreMenu(menuBtn);
+      return;
+    }
     const done = e.target.closest('[data-done]');
     if (done) {
       const chore = state.chores.find((c) => c.id === done.dataset.done);
@@ -556,6 +617,28 @@ function bindApp() {
     const edit = e.target.closest('[data-edit]');
     if (edit) openChoreDialog(state.chores.find((c) => c.id === edit.dataset.edit));
   });
+
+  $('#chore-menu').addEventListener('click', (e) => {
+    const action = e.target.closest('[data-menu-action]');
+    if (!action) return;
+    const chore = state.chores.find((c) => c.id === menuFor);
+    closeChoreMenu();
+    if (!chore) return;
+    if (action.dataset.menuAction === 'edit') openChoreDialog(chore);
+    if (action.dataset.menuAction === 'undo') undoLastDone(chore);
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#chore-menu, [data-menu]')) closeChoreMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menuFor) {
+      const btn = document.querySelector(`[data-menu="${menuFor}"]`);
+      closeChoreMenu();
+      if (btn) btn.focus();
+    }
+  });
+  window.addEventListener('scroll', closeChoreMenu, { passive: true });
+  window.addEventListener('resize', closeChoreMenu);
 
   $('#chore-groups').addEventListener('keydown', (e) => {
     const edit = e.target.closest('[data-edit]');
