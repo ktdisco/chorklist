@@ -348,3 +348,39 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 12px; }
 .chip-btn { border-radius: 999px; padding: 6px 12px; font-size: .88rem; }
+
+/* ---------- celebration when a chore is done ---------- */
+
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; }
+.cheer {
+  position: fixed;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  z-index: 61;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 10px 30px rgb(0 0 0 / .2);
+  font-size: 1.6rem;
+  font-weight: 800;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  animation: cheer 1.9s ease-out forwards;
+}
+.cheer img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+@keyframes cheer {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.5); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  25% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cheer { animation: none; }
+}

@@ -544,6 +544,7 @@ function bindApp() {
       done.disabled = true;
       try {
         const entry = await db.completeChore(chore.id, me || chore.assigneeId, localToday());
+        window.Celebrate.celebrate(done);
         await refresh();
         toast(`<span>✓ ${esc(chore.name)} done</span><button class="link" data-undo="${entry.id}">Undo</button>`);
       } catch (err) {

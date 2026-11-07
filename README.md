@@ -11,7 +11,7 @@ Track your household's recurring chores (who's on it, when it's due, who did it 
 - **At a glance**: chores grouped into Overdue, Today, This week and Later.
 - **Shared household**: each person has their own login. One person creates the household and shares an invite code.
 - **Assign and rotate**: assign chores to someone (or "Anyone"), filter by person, and optionally pass a chore to the next person each time it's done.
-- **One-tap done** with **Undo**, plus a history of who did what.
+- **One-tap done** with **Undo**, plus a history of who did what. Every chore checked off gets a burst of confetti and a cheer. To show a picture next to "Wow!", add a square image of your choice as `web/wow.jpg`.
 - **Shared lists**: groceries, wish lists, movies to watch, anything. Everyone can add and check items, see who added what, and **clear checked items** after a shopping trip.
 - **Works like an app on iPhone**: add it to your home screen and it opens full screen with its own icon.
 - **Live updates**: when someone marks a chore done or checks off an item, everyone else's screen updates.
@@ -108,6 +108,7 @@ CHORKLIST_TEST_PG=postgres://postgres@localhost:5432/postgres npm test
 | `web/app.js` | UI logic |
 | `web/db.js` | All communication with Supabase |
 | `web/schedule.js` | Due date math (shared with the tests) |
+| `web/celebrate.js` | Confetti and cheers when a chore is checked off |
 | `web/config.js` | Your Supabase project URL and anon key |
 | `supabase/schema.sql` | Tables, security rules, and the complete/undo/rotate functions |
 | `supabase/migrations/` | Later database updates, run in order (e.g. `002_lists.sql` for shared lists, `003_one_time_chores.sql` for one-time chores) |
