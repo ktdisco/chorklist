@@ -55,15 +55,22 @@ function daysBetween(fromStr, toStr) {
   return Math.round((parseDate(toStr) - parseDate(fromStr)) / 86400000);
 }
 
+// One-time chores have repeats === false. Older rows without the field repeat.
+function isOneTime(chore) {
+  return chore.repeats === false;
+}
+
 // Next due date: one interval after the last completion, or the start date
-// if the chore has never been done.
+// if the chore has never been done. A finished one-time chore has none.
 function nextDue(chore) {
+  if (isOneTime(chore)) return chore.lastDone ? null : chore.startDate;
   if (chore.lastDone) return addInterval(chore.lastDone, chore.every, chore.unit);
   return chore.startDate;
 }
 
 function status(chore, today) {
   const due = nextDue(chore);
+  if (due === null) return { nextDue: null, daysUntil: null, state: 'finished' };
   const daysUntil = daysBetween(today, due);
   let state;
   if (daysUntil < 0) state = 'overdue';
@@ -73,7 +80,8 @@ function status(chore, today) {
   return { nextDue: due, daysUntil, state };
 }
 
-function describeFrequency(every, unit) {
+function describeFrequency(every, unit, repeats = true) {
+  if (repeats === false) return 'One time';
   if (every === 1) {
     return { day: 'Daily', week: 'Weekly', month: 'Monthly', year: 'Yearly' }[unit];
   }
@@ -87,6 +95,7 @@ const api = {
   todayString,
   addInterval,
   daysBetween,
+  isOneTime,
   nextDue,
   status,
   describeFrequency,

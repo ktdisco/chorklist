@@ -78,8 +78,8 @@ async function refresh() {
     ...data,
     today,
     chores: data.chores
-      .map((c) => ({ ...c, frequency: S.describeFrequency(c.every, c.unit), ...S.status(c, today) }))
-      .sort((a, b) => a.nextDue.localeCompare(b.nextDue) || a.name.localeCompare(b.name)),
+      .map((c) => ({ ...c, frequency: S.describeFrequency(c.every, c.unit, c.repeats), ...S.status(c, today) }))
+      .sort((a, b) => (a.nextDue || '').localeCompare(b.nextDue || '') || a.name.localeCompare(b.name)),
     history: data.history.map((h) => ({ ...h, choreName: names[h.choreId] || '(deleted chore)' })),
   };
   render();
@@ -282,12 +282,14 @@ function renderChores() {
   const chores = state.chores.filter((c) =>
     filter === 'all' ? true : filter === 'none' ? !c.assigneeId : c.assigneeId === filter);
 
-  if (!state.chores.length) {
+  // Finished one-time chores live on in History only.
+  if (!state.chores.some((c) => c.state !== 'finished')) {
     $('#chore-groups').innerHTML = `
       <div class="empty">
         <p><strong>No chores yet.</strong></p>
         <p>Add your household in the <em>Household</em> tab, then add chores like
-        “Take out recycling, every week” or “Change HVAC filter, every 3 months”.</p>
+        “Take out recycling, every week”, “Change HVAC filter, every 3 months”,
+        or a one-time job like “Fix the fence”.</p>
       </div>`;
     return;
   }
@@ -336,7 +338,7 @@ function renderHistory() {
 
 function renderHousehold() {
   const counts = {};
-  for (const c of state.chores) counts[c.assigneeId] = (counts[c.assigneeId] || 0) + 1;
+  for (const c of state.chores) if (c.state !== 'finished') counts[c.assigneeId] = (counts[c.assigneeId] || 0) + 1;
   const recent = {};
   for (const id of state.recent) recent[id] = (recent[id] || 0) + 1;
 
@@ -367,16 +369,31 @@ function openChoreDialog(chore) {
   $('#chore-error').textContent = '';
   form.name.value = chore?.name || '';
   form.room.value = chore?.room || '';
+  form.repeats.checked = chore ? chore.repeats : true;
   form.every.value = chore?.every || 1;
   form.unit.value = chore?.unit || 'week';
-  // Once a chore has been done, its schedule comes from the last completion.
-  $('#start-date-label').hidden = Boolean(chore?.lastDone);
+  editingLastDone = chore?.lastDone || null;
   form.startDate.value = chore ? chore.startDate : localToday();
   form.assigneeId.value = chore?.assigneeId || '';
   form.rotate.checked = chore?.rotate || false;
   form.notes.value = chore?.notes || '';
+  syncRepeatFields();
   $('#chore-dialog').showModal();
   if (!chore) form.name.focus();
+}
+
+let editingLastDone = null;
+
+// Show the fields that fit the chore: a one-time chore has no interval or rotation.
+function syncRepeatFields() {
+  const form = $('#chore-form');
+  const repeats = form.repeats.checked;
+  $('#repeat-every').hidden = !repeats;
+  form.every.disabled = !repeats; // skip validating a hidden field
+  $('#rotate-label').hidden = !repeats;
+  // Once a repeating chore has been done, its schedule comes from the last completion.
+  $('#start-date-label').hidden = repeats && Boolean(editingLastDone);
+  $('#start-date-text').textContent = repeats ? 'First due' : 'Due';
 }
 
 async function saveChore(e) {
@@ -385,13 +402,17 @@ async function saveChore(e) {
   const body = {
     name: form.name.value,
     room: form.room.value,
-    every: Number(form.every.value),
+    every: Number(form.every.value) || 1,
     unit: form.unit.value,
     assigneeId: form.assigneeId.value || null,
-    rotate: form.rotate.checked,
+    rotate: form.repeats.checked && form.rotate.checked,
     notes: form.notes.value,
     startDate: form.startDate.value,
   };
+  // Only send "repeats" when it matters, so repeating chores still save on
+  // databases that haven't run migration 003 yet.
+  const was = editingId && state.chores.find((c) => c.id === editingId);
+  if (!form.repeats.checked || (was && !was.repeats)) body.repeats = form.repeats.checked;
   if (!body.name.trim()) {
     $('#chore-error').textContent = 'Give the chore a name';
     return;
@@ -503,6 +524,7 @@ function bindApp() {
 
   $('#add-chore-btn').addEventListener('click', () => openChoreDialog(null));
   $('#chore-form').addEventListener('submit', saveChore);
+  $('#chore-form').repeats.addEventListener('change', syncRepeatFields);
   $('#cancel-chore-btn').addEventListener('click', () => $('#chore-dialog').close());
   $('#delete-chore-btn').addEventListener('click', async () => {
     const chore = state.chores.find((c) => c.id === editingId);

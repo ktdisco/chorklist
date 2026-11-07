@@ -220,7 +220,11 @@
         <input name="room" maxlength="40" placeholder="e.g. Kitchen" list="room-options">
         <datalist id="room-options"></datalist>
       </label>
-      <fieldset class="row">
+      <label class="check">
+        <input name="repeats" type="checkbox" checked>
+        Repeats (untick for a one-time chore)
+      </label>
+      <fieldset class="row" id="repeat-every">
         <legend>Repeats</legend>
         <span>Every</span>
         <input name="every" type="number" inputmode="numeric" min="1" max="365" value="1" required aria-label="Interval">
@@ -231,13 +235,13 @@
           <option value="year">year(s)</option>
         </select>
       </fieldset>
-      <label id="start-date-label">First due
+      <label id="start-date-label"><span id="start-date-text">First due</span>
         <input name="startDate" type="date" required>
       </label>
       <label>Assigned to
         <select name="assigneeId"></select>
       </label>
-      <label class="check">
+      <label class="check" id="rotate-label">
         <input name="rotate" type="checkbox">
         Rotate between household members after each completion
       </label>

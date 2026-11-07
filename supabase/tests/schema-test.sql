@@ -195,6 +195,20 @@ do $$ begin
 exception when check_violation then null;
 end $$;
 
+-- ---------- One-time chores (migrations/003_one_time_chores.sql) ----------
+
+select pg_temp.as_user('00000000-0000-0000-0000-00000000000a');
+select pg_temp.check(repeats, 'existing chores keep repeating') from public.chores where id = :'trash';
+insert into public.chores (household_id, name, every, unit, start_date, repeats)
+  values (:'hid', 'Fix fence', 1, 'week', '2026-11-20', false);
+select id as fence from public.chores where name = 'Fix fence' \gset
+select id as f1 from public.complete_chore(:'fence', :'alex', '2026-11-08') \gset
+select pg_temp.check(not repeats and last_done = '2026-11-08' and last_done_by = :'alex',
+  'one-time chore records completion') from public.chores where id = :'fence';
+select public.undo_completion(:'f1');
+select pg_temp.check(last_done is null, 'undo reopens one-time chore') from public.chores where id = :'fence';
+reset role;
+
 -- Signed-out users get nothing.
 set role anon;
 do $$ begin

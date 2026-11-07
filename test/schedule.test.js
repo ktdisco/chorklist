@@ -49,3 +49,20 @@ test('describeFrequency', () => {
   assert.equal(s.describeFrequency(1, 'week'), 'Weekly');
   assert.equal(s.describeFrequency(3, 'month'), 'Every 3 months');
 });
+
+test('one-time chores are due on their date, then finished', () => {
+  const chore = { every: 1, unit: 'week', repeats: false, startDate: '2026-11-10', lastDone: null };
+  assert.equal(s.isOneTime(chore), true);
+  assert.equal(s.nextDue(chore), '2026-11-10');
+  assert.equal(s.status(chore, '2026-11-12').state, 'overdue');
+  chore.lastDone = '2026-11-12';
+  assert.equal(s.nextDue(chore), null);
+  assert.deepEqual(s.status(chore, '2026-11-12'), { nextDue: null, daysUntil: null, state: 'finished' });
+  assert.equal(s.describeFrequency(1, 'week', false), 'One time');
+});
+
+test('chores without a repeats field keep repeating', () => {
+  const chore = { every: 1, unit: 'week', startDate: '2026-11-10', lastDone: '2026-11-10' };
+  assert.equal(s.isOneTime(chore), false);
+  assert.equal(s.nextDue(chore), '2026-11-17');
+});
