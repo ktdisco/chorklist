@@ -20,6 +20,9 @@
     if (!error) return null;
     const msg = error.message || String(error);
     if (error.code === '23505') return new Error('That name is already in the household');
+    if (/repeats/.test(msg) && (error.code === 'PGRST204' || error.code === '42703')) {
+      return new Error('One-time chores need a quick database update: run supabase/migrations/003_one_time_chores.sql in the Supabase SQL Editor.');
+    }
     if (error.code === '23514') return new Error('Please check the values you entered');
     if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
       return new Error("Can't reach the server. Check your internet connection.");
@@ -52,6 +55,7 @@
     unit: r.unit,
     assigneeId: r.assignee_id,
     rotate: r.rotate,
+    repeats: r.repeats !== false, // missing before migration 003
     startDate: r.start_date,
     lastDone: r.last_done,
     lastDoneBy: r.last_done_by,
@@ -71,6 +75,7 @@
     if ('unit' in c) row.unit = c.unit;
     if ('assigneeId' in c) row.assignee_id = c.assigneeId || null;
     if ('rotate' in c) row.rotate = c.rotate;
+    if ('repeats' in c) row.repeats = c.repeats;
     if ('startDate' in c) row.start_date = c.startDate;
     return row;
   }
@@ -180,6 +185,11 @@
     async completeChore(choreId, memberId, date) {
       const entry = await run(sb.rpc('complete_chore', { p_chore_id: choreId, p_member_id: memberId || null, p_date: date }));
       return toCompletion(entry);
+    },
+    async latestCompletion(choreId) {
+      const rows = await run(sb.from('completions').select('*').eq('chore_id', choreId)
+        .order('date', { ascending: false }).order('created_at', { ascending: false }).limit(1));
+      return rows[0] ? toCompletion(rows[0]) : null;
     },
     async undoCompletion(id) {
       return run(sb.rpc('undo_completion', { p_completion_id: id }));

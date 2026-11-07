@@ -78,8 +78,8 @@ async function refresh() {
     ...data,
     today,
     chores: data.chores
-      .map((c) => ({ ...c, frequency: S.describeFrequency(c.every, c.unit), ...S.status(c, today) }))
-      .sort((a, b) => a.nextDue.localeCompare(b.nextDue) || a.name.localeCompare(b.name)),
+      .map((c) => ({ ...c, frequency: S.describeFrequency(c.every, c.unit, c.repeats), ...S.status(c, today) }))
+      .sort((a, b) => (a.nextDue || '').localeCompare(b.nextDue || '') || a.name.localeCompare(b.name)),
     history: data.history.map((h) => ({ ...h, choreName: names[h.choreId] || '(deleted chore)' })),
   };
   render();
@@ -278,16 +278,19 @@ const GROUPS = [
 ];
 
 function renderChores() {
+  closeChoreMenu();
   const filter = $('#filter-select').value;
   const chores = state.chores.filter((c) =>
     filter === 'all' ? true : filter === 'none' ? !c.assigneeId : c.assigneeId === filter);
 
-  if (!state.chores.length) {
+  // Finished one-time chores live on in History only.
+  if (!state.chores.some((c) => c.state !== 'finished')) {
     $('#chore-groups').innerHTML = `
       <div class="empty">
         <p><strong>No chores yet.</strong></p>
         <p>Add your household in the <em>Household</em> tab, then add chores like
-        “Take out recycling, every week” or “Change HVAC filter, every 3 months”.</p>
+        “Take out recycling, every week”, “Change HVAC filter, every 3 months”,
+        or a one-time job like “Fix the fence”.</p>
       </div>`;
     return;
   }
@@ -316,8 +319,63 @@ function choreCard(c) {
         <div class="chore-meta subtle">${last}</div>
         ${c.notes ? `<div class="chore-notes">${esc(c.notes)}</div>` : ''}
       </div>
-      ${chip(c.assigneeId)}
+      <div class="chore-side">
+        ${chip(c.assigneeId)}
+        <button class="icon-btn small menu-btn" data-menu="${c.id}" aria-haspopup="menu" aria-expanded="false"
+          aria-label="More actions for ${esc(c.name)}">⋮</button>
+      </div>
     </li>`;
+}
+
+// ---------- chore card menu (⋯) ----------
+
+let menuFor = null;
+
+function closeChoreMenu() {
+  const menu = $('#chore-menu');
+  if (menu.hidden) return;
+  menu.hidden = true;
+  const btn = document.querySelector(`[data-menu="${menuFor}"]`);
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  menuFor = null;
+}
+
+function openChoreMenu(btn) {
+  const chore = state.chores.find((c) => c.id === btn.dataset.menu);
+  if (!chore) return;
+  if (menuFor === chore.id) return closeChoreMenu();
+  closeChoreMenu();
+  menuFor = chore.id;
+  const by = member(chore.lastDoneBy);
+  const menu = $('#chore-menu');
+  menu.innerHTML = `
+    <button role="menuitem" data-menu-action="edit">Edit chore</button>
+    ${chore.lastDone ? `
+      <button role="menuitem" data-menu-action="undo">
+        Undo last done
+        <span class="subtle">${formatDate(chore.lastDone)}${by ? ` by ${esc(by.name)}` : ''}</span>
+      </button>` : '<p class="menu-note subtle">Not done yet, nothing to undo</p>'}`;
+  menu.hidden = false;
+  btn.setAttribute('aria-expanded', 'true');
+  // Line the menu up under the button, kept on screen.
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`;
+  menu.style.top = `${r.bottom + 4 + h > window.innerHeight - 8 ? r.top - h - 4 : r.bottom + 4}px`;
+  menu.querySelector('button').focus();
+}
+
+async function undoLastDone(chore) {
+  try {
+    const entry = await db.latestCompletion(chore.id);
+    if (!entry) return refresh();
+    const by = member(entry.memberId);
+    if (!confirm(`Undo “${chore.name}” done on ${formatDate(entry.date)}${by ? ` by ${by.name}` : ''}?`)) return;
+    await db.undoCompletion(entry.id);
+    await refresh();
+    toast(`<span>↩ ${esc(chore.name)} is back on the list</span>`);
+  } catch (err) { showError(err); }
 }
 
 function renderHistory() {
@@ -336,7 +394,7 @@ function renderHistory() {
 
 function renderHousehold() {
   const counts = {};
-  for (const c of state.chores) counts[c.assigneeId] = (counts[c.assigneeId] || 0) + 1;
+  for (const c of state.chores) if (c.state !== 'finished') counts[c.assigneeId] = (counts[c.assigneeId] || 0) + 1;
   const recent = {};
   for (const id of state.recent) recent[id] = (recent[id] || 0) + 1;
 
@@ -367,16 +425,31 @@ function openChoreDialog(chore) {
   $('#chore-error').textContent = '';
   form.name.value = chore?.name || '';
   form.room.value = chore?.room || '';
+  form.repeats.checked = chore ? chore.repeats : true;
   form.every.value = chore?.every || 1;
   form.unit.value = chore?.unit || 'week';
-  // Once a chore has been done, its schedule comes from the last completion.
-  $('#start-date-label').hidden = Boolean(chore?.lastDone);
+  editingLastDone = chore?.lastDone || null;
   form.startDate.value = chore ? chore.startDate : localToday();
   form.assigneeId.value = chore?.assigneeId || '';
   form.rotate.checked = chore?.rotate || false;
   form.notes.value = chore?.notes || '';
+  syncRepeatFields();
   $('#chore-dialog').showModal();
   if (!chore) form.name.focus();
+}
+
+let editingLastDone = null;
+
+// Show the fields that fit the chore: a one-time chore has no interval or rotation.
+function syncRepeatFields() {
+  const form = $('#chore-form');
+  const repeats = form.repeats.checked;
+  $('#repeat-every').hidden = !repeats;
+  form.every.disabled = !repeats; // skip validating a hidden field
+  $('#rotate-label').hidden = !repeats;
+  // Once a repeating chore has been done, its schedule comes from the last completion.
+  $('#start-date-label').hidden = repeats && Boolean(editingLastDone);
+  $('#start-date-text').textContent = repeats ? 'First due' : 'Due';
 }
 
 async function saveChore(e) {
@@ -385,13 +458,17 @@ async function saveChore(e) {
   const body = {
     name: form.name.value,
     room: form.room.value,
-    every: Number(form.every.value),
+    every: Number(form.every.value) || 1,
     unit: form.unit.value,
     assigneeId: form.assigneeId.value || null,
-    rotate: form.rotate.checked,
+    rotate: form.repeats.checked && form.rotate.checked,
     notes: form.notes.value,
     startDate: form.startDate.value,
   };
+  // Only send "repeats" when it matters, so repeating chores still save on
+  // databases that haven't run migration 003 yet.
+  const was = editingId && state.chores.find((c) => c.id === editingId);
+  if (!form.repeats.checked || (was && !was.repeats)) body.repeats = form.repeats.checked;
   if (!body.name.trim()) {
     $('#chore-error').textContent = 'Give the chore a name';
     return;
@@ -503,6 +580,7 @@ function bindApp() {
 
   $('#add-chore-btn').addEventListener('click', () => openChoreDialog(null));
   $('#chore-form').addEventListener('submit', saveChore);
+  $('#chore-form').repeats.addEventListener('change', syncRepeatFields);
   $('#cancel-chore-btn').addEventListener('click', () => $('#chore-dialog').close());
   $('#delete-chore-btn').addEventListener('click', async () => {
     const chore = state.chores.find((c) => c.id === editingId);
@@ -515,6 +593,11 @@ function bindApp() {
   });
 
   $('#chore-groups').addEventListener('click', async (e) => {
+    const menuBtn = e.target.closest('[data-menu]');
+    if (menuBtn) {
+      openChoreMenu(menuBtn);
+      return;
+    }
     const done = e.target.closest('[data-done]');
     if (done) {
       const chore = state.chores.find((c) => c.id === done.dataset.done);
@@ -522,6 +605,7 @@ function bindApp() {
       done.disabled = true;
       try {
         const entry = await db.completeChore(chore.id, me || chore.assigneeId, localToday());
+        window.Celebrate.celebrate(done);
         await refresh();
         toast(`<span>✓ ${esc(chore.name)} done</span><button class="link" data-undo="${entry.id}">Undo</button>`);
       } catch (err) {
@@ -533,6 +617,28 @@ function bindApp() {
     const edit = e.target.closest('[data-edit]');
     if (edit) openChoreDialog(state.chores.find((c) => c.id === edit.dataset.edit));
   });
+
+  $('#chore-menu').addEventListener('click', (e) => {
+    const action = e.target.closest('[data-menu-action]');
+    if (!action) return;
+    const chore = state.chores.find((c) => c.id === menuFor);
+    closeChoreMenu();
+    if (!chore) return;
+    if (action.dataset.menuAction === 'edit') openChoreDialog(chore);
+    if (action.dataset.menuAction === 'undo') undoLastDone(chore);
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#chore-menu, [data-menu]')) closeChoreMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menuFor) {
+      const btn = document.querySelector(`[data-menu="${menuFor}"]`);
+      closeChoreMenu();
+      if (btn) btn.focus();
+    }
+  });
+  window.addEventListener('scroll', closeChoreMenu, { passive: true });
+  window.addEventListener('resize', closeChoreMenu);
 
   $('#chore-groups').addEventListener('keydown', (e) => {
     const edit = e.target.closest('[data-edit]');

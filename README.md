@@ -7,10 +7,11 @@ Track your household's recurring chores (who's on it, when it's due, who did it 
 ## Features
 
 - **Recurring schedules**: every N days, weeks, months or years. The next due date counts from when the chore was *actually* done.
+- **One-time chores**: untick *Repeats* for a job that only needs doing once. When it's done it leaves the list and stays in the history.
 - **At a glance**: chores grouped into Overdue, Today, This week and Later.
 - **Shared household**: each person has their own login. One person creates the household and shares an invite code.
 - **Assign and rotate**: assign chores to someone (or "Anyone"), filter by person, and optionally pass a chore to the next person each time it's done.
-- **One-tap done** with **Undo**, plus a history of who did what.
+- **One-tap done** with **Undo**, plus a history of who did what. Every chore checked off gets a burst of confetti and a cheer. "Wow!" comes with a picture (`web/wow.png`).
 - **Shared lists**: groceries, wish lists, movies to watch, anything. Everyone can add and check items, see who added what, and **clear checked items** after a shopping trip.
 - **Works like an app on iPhone**: add it to your home screen and it opens full screen with its own icon.
 - **Live updates**: when someone marks a chore done or checks off an item, everyone else's screen updates.
@@ -30,7 +31,7 @@ No computer of yours needs to stay on.
 1. Sign up at [supabase.com](https://supabase.com) and create a **New project** on the free plan. Pick any name and database password, and the region closest to you.
 2. When it's ready, open **SQL Editor** → **New query**.
 3. Copy everything in [`supabase/schema.sql`](supabase/schema.sql), paste it in, and click **Run**. You should see "Success. No rows returned".
-4. Do the same, one file at a time and in order, for each file in [`supabase/migrations/`](supabase/migrations) (currently [`002_lists.sql`](supabase/migrations/002_lists.sql)).
+4. Do the same, one file at a time and in order, for each file in [`supabase/migrations/`](supabase/migrations) (currently [`002_lists.sql`](supabase/migrations/002_lists.sql) and [`003_one_time_chores.sql`](supabase/migrations/003_one_time_chores.sql)).
 
 ### Updating an existing setup
 
@@ -107,8 +108,9 @@ CHORKLIST_TEST_PG=postgres://postgres@localhost:5432/postgres npm test
 | `web/app.js` | UI logic |
 | `web/db.js` | All communication with Supabase |
 | `web/schedule.js` | Due date math (shared with the tests) |
+| `web/celebrate.js` | Confetti and cheers when a chore is checked off |
 | `web/config.js` | Your Supabase project URL and anon key |
 | `supabase/schema.sql` | Tables, security rules, and the complete/undo/rotate functions |
-| `supabase/migrations/` | Later database updates, run in order (e.g. `002_lists.sql` for shared lists) |
+| `supabase/migrations/` | Later database updates, run in order (e.g. `002_lists.sql` for shared lists, `003_one_time_chores.sql` for one-time chores) |
 | `supabase/tests/` | Database tests run against plain PostgreSQL |
 | `.github/workflows/pages.yml` | Tests and publishes `web/` to GitHub Pages |
